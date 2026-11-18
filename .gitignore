@@ -1,0 +1,6 @@
+raw/
+data/
+*.part
+__pycache__/
+*.pt
+.venv/
