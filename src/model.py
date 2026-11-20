@@ -4,9 +4,12 @@ Training examples: every day at 00:00 Taiwan time (16:00 UTC) is a prediction ti
 cohort user, the features at t and the answers of the week [t, t+7d) make one example. The first
 14 days of data are only used as history.
 
-The 0/1 threshold of each activity is chosen to maximize its F1 on the last week that has
-answers, with a model that has not seen that week; then the model is trained again on all
-weeks that have answers and used to predict.
+The 0/1 decision of each activity is set on the last week that has answers, with a model that
+has not seen that week (model A): the threshold that maximizes F1 there, and the share of test
+users that this threshold marks as active. Then the model is trained again on all weeks that
+have answers (model B) and marks that same share of test users, the most probable ones. The
+share is transferred, not the threshold itself, because the two models' probabilities are on
+different scales when the data changes over time (e.g. pushes missing in recent weeks).
 
 Validation (week 2026/11/08 - 11/15 Taiwan time), with the ablation study:
 
@@ -107,8 +110,18 @@ def best_thresholds(P, Y):
     return np.array(thr)
 
 
+def top_share(P, shares):
+    """1 for the given share of rows with the highest probability, per column."""
+    pred = np.zeros_like(P, dtype=int)
+    for i, share in enumerate(shares):
+        k = int(round(share * len(P)))
+        if k > 0:
+            pred[np.argsort(-P[:, i], kind="stable")[:k], i] = 1
+    return pred
+
+
 def train_and_predict(data, cut, eval_t, cols):
-    """Choose the thresholds on the last week with answers, retrain on all weeks with answers
+    """Set the decision on the last week with answers, retrain on all weeks with answers
     (answers known before cut), and predict at eval_t for the test users."""
     ts = data.times(cut)
     tune_t = ts[-1]
@@ -118,14 +131,18 @@ def train_and_predict(data, cut, eval_t, cols):
     Xa, Ya = data.dataset(ts_a, data.train_ids)
     ma = fit(Xa[cols], Ya)
     Xt = data.X(tune_t, data.train_ids)
-    thr = best_thresholds(proba(ma, Xt[cols]), data.Y(tune_t, data.train_ids))
+    Yt = data.Y(tune_t, data.train_ids)
+    thr = best_thresholds(proba(ma, Xt[cols]), Yt)
+    shares = (proba(ma, data.X(tune_t, data.test_ids)[cols]) >= thr).mean(axis=0)
+    shares[Yt.sum(axis=0) == 0] = 0.0  # nobody did it that week: mark nobody
 
     Xb, Yb = data.dataset(ts, data.train_ids)
     mb = fit(Xb[cols], Yb)
     P = proba(mb, data.X(eval_t, data.test_ids)[cols])
-    pred = pd.DataFrame((P >= thr).astype(int), columns=ACTIVITIES)
+    pred = pd.DataFrame(top_share(P, shares), columns=ACTIVITIES)
     pred.insert(0, "UserID", data.test_ids)
-    info = {"train_days": f"{ts[0]:%m-%d} to {ts[-1]:%m-%d}", "examples": len(Xb), "tune_day": f"{tune_t:%m-%d}"}
+    info = {"train_days": f"{ts[0]:%m-%d} to {ts[-1]:%m-%d}", "examples": len(Xb), "tune_day": f"{tune_t:%m-%d}",
+            "shares": shares}
     return pred, thr, info
 
 
@@ -164,7 +181,8 @@ def validate(args):
         if name == FINAL:
             pred.to_csv("val_pred.csv", index=False)
             truth.to_csv("val_truth.csv", index=False)
-            print("  thresholds: " + ", ".join(f"{a} {v:.2f}" for a, v in zip(ACTIVITIES, thr)))
+            print("  thresholds (model A): " + ", ".join(f"{a} {v:.2f}" for a, v in zip(ACTIVITIES, thr)))
+            print("  share of test users marked active: " + ", ".join(f"{a} {v:.3f}" for a, v in zip(ACTIVITIES, info["shares"])))
 
     res = pd.DataFrame(rows).set_index("model")
     out = ROOT / "results"
@@ -198,9 +216,9 @@ def predict(args):
     out = ROOT / f"output_{args.student_id}.csv"
     pred.to_csv(out, index=False)
     print(f"Model {FINAL}: {len(cols)} features, {info['examples']} training examples "
-          f"(days {info['train_days']}), thresholds chosen on the week of {info['tune_day']}")
-    print("  thresholds: " + ", ".join(f"{a} {v:.2f}" for a, v in zip(ACTIVITIES, thr)))
-    print(f"Wrote {out}. Share of users predicted 1:")
+          f"(days {info['train_days']}), decision set on the week of {info['tune_day']}")
+    print("  thresholds (model A): " + ", ".join(f"{a} {v:.2f}" for a, v in zip(ACTIVITIES, thr)))
+    print(f"Wrote {out}. Share of users predicted 1 (= share marked active by model A on that week):")
     print(pred[ACTIVITIES].mean().round(3).to_string())
 
 

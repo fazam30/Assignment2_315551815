@@ -67,8 +67,10 @@ the user's own activity in the last 7 days, temporal features (1/3/14/28-day cou
 the last activity, time-decayed counts, global activity volume) and relational features obtained
 by following the foreign keys (user → repositories → other users' activity; user → their PRs /
 issues → reviews and comments by others; PRs merged by the user). Model (`src/model.py`): one
-gradient-boosted tree classifier per activity, trained on daily prediction times; the 0/1
-threshold of each activity maximizes its F1 on the last week with answers.
+gradient-boosted tree classifier per activity, trained on daily prediction times. On the
+last week with answers, a model that has not seen it picks the F1-maximizing threshold of each
+activity; the final model, retrained on all weeks, marks as active the same share of test users
+(the most probable ones), because probability scales change when the data changes over time.
 The data stops on 2026-11-20 (about 32 hours before the test week), so the final prediction
 computes the features at the last hour with data (`--features-at-data-end`): otherwise the
 hours without data would look like every user had stopped.
