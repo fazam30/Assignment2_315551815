@@ -34,10 +34,10 @@ archive of GitHub events. It is used for educational purposes within the course
 pip install -r requirements.txt
 ```
 
-### 1. Download GH Archive (period used: 2026-10-01 00:00 UTC → 2026-11-21 UTC)
+### 1. Download GH Archive (period used: 2026-10-01 00:00 UTC → 2026-11-20 08:59 UTC)
 
 ```bash
-python src/download_gharchive.py --start 2026-10-01-0 --end 2026-11-21-14 --out raw
+python src/download_gharchive.py --start 2026-10-01-0 --end 2026-11-20-8 --out raw
 ```
 
 By default the script keeps only the lines of the 9,000 cohort users while downloading
@@ -69,11 +69,14 @@ by following the foreign keys (user → repositories → other users' activity; 
 issues → reviews and comments by others; PRs merged by the user). Model (`src/model.py`): one
 gradient-boosted tree classifier per activity, trained on daily prediction times; the 0/1
 threshold of each activity maximizes its F1 on the last week with answers.
+The data stops on 2026-11-20 (about 32 hours before the test week), so the final prediction
+computes the features at the last hour with data (`--features-at-data-end`): otherwise the
+hours without data would look like every user had stopped.
 
 ```bash
 python src/check_data.py --raw raw --data data           # data quality: missing hours, activity per day
 python src/model.py validate --data data                 # week 2026/11/08-11/15, ablation study -> results/
-python src/model.py predict --data data --student-id {studentID}   # -> output_{studentID}.csv
+python src/model.py predict --data data --student-id {studentID} --features-at-data-end   # -> output_{studentID}.csv
 ```
 
 ### 5. Check the output format

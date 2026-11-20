@@ -183,11 +183,18 @@ def predict(args):
     data = Data(args.data)
     t = taiwan_to_utc(args.t)
     print(f"Test week: {args.t} Taiwan time + 7 days (t = {t} UTC). Data: {data.start} -> {data.end} UTC")
-    if data.end < t - pd.Timedelta(hours=12):
-        print("WARNING: the data stops more than 12 hours before t: download the latest hours first.")
-    groups = feature_groups(list(data.X(t, data.test_ids).columns))
+    if data.end < t - pd.Timedelta(hours=12) and not args.features_at_data_end:
+        print("WARNING: the data stops more than 12 hours before t: download the latest hours first,\n"
+              "         or use --features-at-data-end.")
+    t_feat = t
+    if args.features_at_data_end and data.end < t:
+        # the data stops before t: describe the users at the last hour with data, so that the
+        # hours with no data are not read as "nobody did anything" (an unseen situation in training)
+        t_feat = data.end.ceil("h")
+        print(f"Features computed at the end of the data, {t_feat} UTC ({(t - t_feat) / pd.Timedelta(hours=1):.0f} h before t).")
+    groups = feature_groups(list(data.X(t_feat, data.test_ids).columns))
     cols = [c for g in CONFIGS[FINAL] for c in groups[g]]
-    pred, thr, info = train_and_predict(data, data.end, t, cols)
+    pred, thr, info = train_and_predict(data, data.end, t_feat, cols)
     out = ROOT / f"output_{args.student_id}.csv"
     pred.to_csv(out, index=False)
     print(f"Model {FINAL}: {len(cols)} features, {info['examples']} training examples "
@@ -207,6 +214,8 @@ def main():
     p.add_argument("--data", required=True)
     p.add_argument("--student-id", required=True)
     p.add_argument("--t", default="2026-11-22 00:00", help="start of the test week, Taiwan time")
+    p.add_argument("--features-at-data-end", action="store_true",
+                   help="if the data stops before t, compute the features at the last hour with data")
     args = ap.parse_args()
     validate(args) if args.cmd == "validate" else predict(args)
 
