@@ -16,7 +16,12 @@ archive of GitHub events. It is used for educational purposes within the course
 .
 ├── assignment2/              # course files (unchanged): preprocess.py, evaluate.py, cohort.txt, test_input.csv
 ├── src/
-│   └── download_gharchive.py # step 1: download the GH Archive hour files
+│   ├── download_gharchive.py # step 1: download the GH Archive hour files
+│   ├── activities.py         # load the tables; when each user did each activity
+│   ├── baseline.py           # "Copy last week" baseline + validation answers
+│   ├── check_data.py         # data quality checks and activity-per-day figure
+│   ├── features.py           # own / temporal / relational features of a user at time t
+│   └── model.py              # training, validation (ablation study), final prediction
 ├── requirements.txt
 └── README.md
 ```
@@ -46,11 +51,32 @@ full GH Archive files. Use `--full` to keep the original files unchanged.
 python assignment2/scripts/preprocess.py --raw raw --out data
 ```
 
-### 3. Model and prediction
+### 3. Baseline "Copy last week" and validation
 
-*(to be completed)*
+`--t` is the prediction time in Taiwan time. Validation week: 2026/11/08 00:00 – 11/15 00:00.
 
-### 4. Check the output format
+```bash
+python src/baseline.py --data data --t "2026-11-08 00:00" --pred val_pred.csv --truth val_truth.csv
+python assignment2/scripts/evaluate.py --pred val_pred.csv --truth val_truth.csv
+```
+
+### 4. Model: validation (ablation study) and final prediction
+
+Features (`src/features.py`), computed at each prediction time t from rows seen before t:
+the user's own activity in the last 7 days, temporal features (1/3/14/28-day counts, days since
+the last activity, time-decayed counts, global activity volume) and relational features obtained
+by following the foreign keys (user → repositories → other users' activity; user → their PRs /
+issues → reviews and comments by others; PRs merged by the user). Model (`src/model.py`): one
+gradient-boosted tree classifier per activity, trained on daily prediction times; the 0/1
+threshold of each activity maximizes its F1 on the last week with answers.
+
+```bash
+python src/check_data.py --raw raw --data data           # data quality: missing hours, activity per day
+python src/model.py validate --data data                 # week 2026/11/08-11/15, ablation study -> results/
+python src/model.py predict --data data --student-id {studentID}   # -> output_{studentID}.csv
+```
+
+### 5. Check the output format
 
 ```bash
 python assignment2/scripts/evaluate.py --pred output_{studentID}.csv --input assignment2/submission/test_input.csv

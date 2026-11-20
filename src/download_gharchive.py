@@ -35,6 +35,7 @@ from pathlib import Path
 SCRIPTS = Path(__file__).resolve().parent.parent / "assignment2" / "scripts"
 URL = "https://data.gharchive.org/{name}"
 RETRIES = 4
+USER_AGENT = "Mozilla/5.0 (compatible; gharchive-downloader for a course assignment)"
 
 _COHORT = None
 
@@ -88,13 +89,17 @@ def gzip_lines(raw_bytes):
 
 def fetch(url):
     """Bytes of url; None if the hour does not exist (yet) on GH Archive."""
+    # Some servers refuse Python's default User-Agent ("Python-urllib") with 403 Forbidden.
+    req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
     for attempt in range(RETRIES):
         try:
-            with urllib.request.urlopen(url, timeout=120) as r:
+            with urllib.request.urlopen(req, timeout=120) as r:
                 return r.read()
         except urllib.error.HTTPError as e:
             if e.code == 404:
                 return None
+            if e.code == 403:  # refused: retrying will not help
+                raise RuntimeError(f"{url}: 403 Forbidden (access refused by the server)")
             err = e
         except Exception as e:  # network errors, timeouts
             err = e

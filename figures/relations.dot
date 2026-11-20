@@ -1,0 +1,23 @@
+// Q2: paths used by the relational features. Render: dot -Tpng relations.dot -o relations.png
+digraph Relations {
+  rankdir=LR; graph [fontname="Helvetica", nodesep=0.45, ranksep=0.9];
+  node [shape=box, style="rounded,filled", fillcolor="#F4F6F8", color="#5A6B7B", fontname="Helvetica", fontsize=11];
+  edge [color="#5A6B7B", fontname="Helvetica", fontsize=9, arrowsize=0.7];
+  U  [label="User u\n(target)", fillcolor="#E3EEF9", color="#2E5A88", penwidth=2];
+  R  [label="Repositories\nu worked on (28 days)"];
+  O  [label="Other users' activity\nin those repos (7 days)"];
+  PR [label="PullRequests\nauthored by u"];
+  RV [label="PRReviews\nby others"];
+  RC [label="PRReviewComments\nby others"];
+  IS [label="Issues\nauthored by u"];
+  IC [label="IssueComments\nby others"];
+  MG [label="PullRequests\nmerged by u (28 days)"];
+  O  -> R  [label="repo_id"];
+  R  -> U  [label="n_repos, others_in_my_repos_*,\ncoworkers_active"];
+  RV -> PR [label="pr_id"];
+  RC -> PR [label="pr_id"];
+  PR -> U  [label="author_id: received_review,\nreceived_review_comment, open_prs"];
+  IC -> IS [label="issue_id"];
+  IS -> U  [label="author_id:\nreceived_issue_comment"];
+  MG -> U  [label="merged_by_id:\nprs_merged_by_user"];
+}

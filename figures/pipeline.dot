@@ -1,0 +1,23 @@
+// Q4 pipeline of the project. Render: dot -Tpng pipeline.dot -o pipeline.png
+digraph Pipeline {
+  rankdir=TB; graph [fontname="Helvetica", nodesep=0.35, ranksep=0.35];
+  node [shape=box, style="rounded,filled", fillcolor="#F4F6F8", color="#5A6B7B", fontname="Helvetica", fontsize=11, margin="0.18,0.08"];
+  edge [color="#5A6B7B", arrowsize=0.7, fontname="Helvetica", fontsize=9];
+  gh   [label="GH Archive hourly files\n2026-10-01 to 2026-11-21 (UTC)"];
+  dl   [label="download_gharchive.py\nkeep cohort users' lines (same filter as preprocess Step 2)"];
+  pre  [label="preprocess.py (course)\n8 tables: Users, Repositories, PullRequests, Issues,\nIssueComments, PRReviews, PRReviewComments, Pushes"];
+  act  [label="activities.py\nwhen each user did each of the 6 activities\n(time, row_time, repo_id)"];
+  feat [label="features.py — features of every user at time t (rows seen before t)\nown (6) · temporal (56) · relational (14)", fillcolor="#E3EEF9", color="#2E5A88"];
+  ex   [label="Training examples\none per user × day (t = 00:00 Taiwan time)\nlabel = activities in [t, t+7 days)"];
+  m1   [label="Model A: 6 HistGradientBoosting classifiers\ntrained on weeks ending before the last labelled week"];
+  thr  [label="Threshold per activity\nmaximizes F1 on the last labelled week"];
+  m2   [label="Model B: same classifiers\nretrained on all labelled weeks"];
+  pred [label="Prediction at t = 2026-11-22 00:00 Taiwan\nprobability ≥ threshold → 1", fillcolor="#E3EEF9", color="#2E5A88"];
+  out  [label="output_{studentID}.csv\nchecked with evaluate.py"];
+  gh -> dl -> pre -> act -> feat -> ex;
+  ex -> m1 -> thr;
+  ex -> m2;
+  thr -> pred [style=dashed, label=" thresholds"];
+  m2 -> pred -> out;
+  feat -> pred [style=dotted, label=" features at test t"];
+}
